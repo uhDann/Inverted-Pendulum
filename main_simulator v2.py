@@ -4,79 +4,56 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 
+def pid_control_law(y, params, x_ref=2.2):
+    """Compute PID control force F."""
+    x, x_dot, theta, theta_dot = y
 
-def simulate_inverted_pendulum():
-    params = {
-        'M':  0.8,    # mass of cart
-        'm':  0.2,    # mass of pendulum bob
-        'l':  0.5,    # pendulum length
-        'g':  9.81,   # gravitational acceleration
-        
-        # Gains for cart position control
-        'Kp_x':     10.0,
-        'Kd_x':     5.0,
-        
-        # Gains for pendulum angle control
-        'Kp_theta': 50.0,
-        'Kd_theta': 10.0
-    }
+    Kp_x     = params['Kp_x']      # P gain for cart position
+    Kd_x     = params['Kd_x']      # D gain for cart velocity
 
-    # --- Initial conditions ---
-    # [cart pos, cart vel, pendulum angle, pendulum angular vel]
-    # cart 10cm away from target, pendulum 5deg from upright
-    x0 = [0.1, 0.0, np.deg2rad(5), 0.0]
+    Kp_theta = params['Kp_theta']  # P gain for pendulum angle
+    Kd_theta = params['Kd_theta']  # D gain for pendulum angular velocity
+    
+    # Outer loop: Cart position control -> Target angle
+    x_error = x_ref - x
+    theta_ref = Kp_x * x_error - Kd_x * x_dot
+    
+    # Inner loop: Pendulum angle control -> Force
+    theta_error = theta_ref - theta
+    F = Kp_theta * theta_error - Kd_theta * theta_dot
+    
+    return F
 
-    # --- Time span & solver setup ---
-    t_span = (0, 5)
-    t_eval = np.linspace(t_span[0], t_span[1], 500)
+def pid_control(y, params, dt=0.01, x_ref=1.8288):
+    """
+    Compute control force F
+    """
+    x, x_dot, theta, theta_dot = y
 
-    sol = solve_ivp(
-        fun=lambda t, y: cart_pendulum_dynamics(t, y, params),
-        t_span=t_span,
-        y0=x0,
-        t_eval=t_eval
-    )
+    Kp_x     = params['Kp_x']      # P gain for cart position
+    Ki_x     = params['Ki_x']      # I gain for cart position
+    Kd_x     = params['Kd_x']      # D gain for cart velocity
 
-    # --- Extract solution ---
-    t_vals        = sol.t
-    x_vals        = sol.y[0, :]
-    xdot_vals     = sol.y[1, :]
-    theta_vals    = sol.y[2, :]
-    thetadot_vals = sol.y[3, :]
+    Kp_theta = params['Kp_theta']  # P gain for pendulum angle
+    Ki_theta = params['Ki_theta']  # I gain for pendulum angle
+    Kd_theta = params['Kd_theta']  # D gain for pendulum angular velocity
 
-    # --- Plot results ---
-    plt.figure(figsize=(10, 8))
+    # 外环控制（位置控制 -> 目标角度）
+    x_error = x_ref - x
+    integral_x += x_error * dt
+    derivative_x = (x_error - prev_x_error) / dt
+    theta_ref = Kp_x * x_error + Ki_x * integral_x + Kd_x * derivative_x
+    prev_x_error = x_error  # 更新误差
 
-    plt.subplot(2,2,1)
-    plt.plot(t_vals, x_vals, label='x (m)')
-    plt.title('Cart Position')
-    plt.xlabel('Time (s)')
-    plt.ylabel('x (m)')
-    plt.grid(True)
+    # 内环控制（角度控制 -> 控制力）
+    theta_error = theta_ref - x[2]
+    integral_theta += theta_error * dt
+    derivative_theta = (theta_error - prev_theta_error) / dt
+    F = Kp_theta * theta_error + Ki_theta * integral_theta + Kd_theta * derivative_theta
+    prev_theta_error = theta_error  # 更新误差
 
-    plt.subplot(2,2,2)
-    plt.plot(t_vals, xdot_vals, label='x_dot (m/s)', color='tab:orange')
-    plt.title('Cart Velocity')
-    plt.xlabel('Time (s)')
-    plt.ylabel('x_dot (m/s)')
-    plt.grid(True)
+    return F
 
-    plt.subplot(2,2,3)
-    plt.plot(t_vals, np.rad2deg(theta_vals), label='theta (deg)', color='tab:green')
-    plt.title('Pendulum Angle')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Angle (deg)')
-    plt.grid(True)
-
-    plt.subplot(2,2,4)
-    plt.plot(t_vals, np.rad2deg(thetadot_vals), label='theta_dot (deg/s)', color='tab:red')
-    plt.title('Pendulum Angular Velocity')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Angular Velocity (deg/s)')
-    plt.grid(True)
-
-    plt.tight_layout()
-    plt.show()
 
 def cart_pendulum_dynamics(t, y, params):
     """
@@ -88,33 +65,27 @@ def cart_pendulum_dynamics(t, y, params):
     m        = params['m']         # pendulum bob mass
     l        = params['l']         # pendulum length
     g        = params['g']         # gravity
-    Kp_x     = params['Kp_x']      # P gain for cart position
-    Kd_x     = params['Kd_x']      # D gain for cart velocity
-    Kp_theta = params['Kp_theta']  # P gain for pendulum angle
-    Kd_theta = params['Kd_theta']  # D gain for pendulum angular velocity
 
-    # Control law: regulate x -> 0 AND theta -> 0
-    u = (-Kp_x * x
-         -Kd_x * x_dot
-         -Kp_theta * (theta - np.deg2rad(180))
-         -Kd_theta * theta_dot)
+    I = 1/3 * m * l**2             # Inertia
+    d = 1                          # Friction Coeeficient
 
-    denom = M + m*np.sin(theta)**2
+    s = np.sin(theta)
+    c = np.cos(theta)
+    F = pid_control_law(y, params)
+    denom = (M + m) * (I + m * l**2) - m**2 * l**2 * c**2
 
     # Equations of motion
     x_ddot = (
-        u + m*np.sin(theta)*(l*theta_dot**2 + g*np.cos(theta))
+        -(I + m * l**2) * d * x_dot + m * l * (I + m * l**2) * s * theta**2 + (I + m * l**2) * F - m**2 * l**2 * g * c * s
     ) / denom
 
     theta_ddot = (
-        -u*np.cos(theta)
-        -m*l*(theta_dot**2)*np.sin(theta)*np.cos(theta)
-        - (M + m)*g*np.sin(theta)
-    ) / (l * denom)
+        m * l * c * d * x_dot + m**2 * l**2 * s * c * theta_dot**2 - m * l * c * F + (M + m) * m * g * l * s
+    ) / denom
 
     return [x_dot, x_ddot, theta_dot, theta_ddot]
 
-def simulate_system(params, y0, t_span=(0, 10), steps=500):
+def simulate_system(params, y0, t_span=(0, 20), steps=2000):
     """
     Solve the ODE for the given parameters, initial conditions,
     time span, and number of time steps.
@@ -134,16 +105,14 @@ def animate_pendulum(t_vals, sol, params):
     using pre-computed time/value arrays.
     """
     x_vals     = sol[0, :]   # cart positions
-    xdot_vals  = sol[1, :]
     theta_vals = sol[2, :]   # pendulum angles
-    thetadot   = sol[3, :]
 
     # Unpack system dimensions
     l = params['l']
 
     # --- Setup figure and axes ---
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.set_xlim([-20, 20])   # Adjust as needed for your system
+    ax.set_xlim([-0.5, 2])   # Adjust as needed for your system
     ax.set_ylim([-1.0, 1.0])
     ax.set_aspect('equal')
     ax.set_title("Cart-Pendulum Animation")
@@ -151,11 +120,11 @@ def animate_pendulum(t_vals, sol, params):
     # --- Elements to draw: cart, pendulum rod, mass ---
     # Cart: We'll represent it as a simple line or small rectangle
     cart_width = 0.3
-    cart_height = 0.5
+    cart_height = 0.2
 
     # We'll use a Line2D for the "cart" top edge, a Line2D for the rod,
     # and a small circle (matplotlib patch) for the pendulum bob.
-    cart_line, = ax.plot([], [], lw=25, color='blue')         # top edge of cart
+    cart_line, = ax.plot([], [], lw=5, color='blue')         # top edge of cart
     rod_line, = ax.plot([], [], lw=2, color='black')         # pendulum rod
     bob_circle = plt.Circle((0, 0), 0.05, fc='red')          # pendulum bob
     ax.add_patch(bob_circle)
@@ -197,15 +166,14 @@ def animate_pendulum(t_vals, sol, params):
 def main():
     # System parameters
     params = {
-        'M':  1.5,     # cart mass
+        'M':  1.0,     # cart mass
         'm':  0.2,     # pendulum mass
         'l':  0.5,     # pendulum length
         'g':  9.81,    # gravity
-
-        'Kp_x':     0,
-        'Kd_x':     0,
-        'Kp_theta': 16.62,
-        'Kd_theta': 9.4
+        'Kp_x':     9.7,
+        'Kd_x':     7.0,
+        'Kp_theta': 1.1,
+        'Kd_theta': 2.2
     }
 
     # [cart pos, cart vel, pendulum angle, pendulum angular vel]
@@ -213,9 +181,10 @@ def main():
     y0 = [0.0, 0.0, np.deg2rad(182), 0.0]
 
     # Solve for 5 seconds
-    t_vals, sol = simulate_system(params, y0, t_span=(0,10), steps=500)
+    t_vals, sol = simulate_system(params, y0)
 
     # Animate
     animate_pendulum(t_vals, sol, params)
 
-main()
+if __name__ == "__main__":
+    main()
