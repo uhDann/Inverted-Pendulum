@@ -113,7 +113,7 @@ def cart_pendulum_dynamics(t, y, params):
 
     return [x_dot, x_ddot, theta_dot, theta_ddot]
 
-def simulate_system(params, y0, t_span=(0, 5), steps=500):
+def simulate_system(params, y0, t_span=(0, 10), steps=500):
     """
     Solve the ODE for the given parameters, initial conditions,
     time span, and number of time steps.
@@ -142,7 +142,7 @@ def animate_pendulum(t_vals, sol, params):
 
     # --- Setup figure and axes ---
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.set_xlim([-1.5, 1.5])   # Adjust as needed for your system
+    ax.set_xlim([-20, 20])   # Adjust as needed for your system
     ax.set_ylim([-1.0, 1.0])
     ax.set_aspect('equal')
     ax.set_title("Cart-Pendulum Animation")
@@ -150,11 +150,11 @@ def animate_pendulum(t_vals, sol, params):
     # --- Elements to draw: cart, pendulum rod, mass ---
     # Cart: We'll represent it as a simple line or small rectangle
     cart_width = 0.3
-    cart_height = 0.2
+    cart_height = 0.5
 
     # We'll use a Line2D for the "cart" top edge, a Line2D for the rod,
     # and a small circle (matplotlib patch) for the pendulum bob.
-    cart_line, = ax.plot([], [], lw=5, color='blue')         # top edge of cart
+    cart_line, = ax.plot([], [], lw=25, color='blue')         # top edge of cart
     rod_line, = ax.plot([], [], lw=2, color='black')         # pendulum rod
     bob_circle = plt.Circle((0, 0), 0.05, fc='red')          # pendulum bob
     ax.add_patch(bob_circle)
@@ -196,14 +196,15 @@ def animate_pendulum(t_vals, sol, params):
 def main():
     # System parameters
     params = {
-        'M':  1.0,     # cart mass
+        'M':  1.5,     # cart mass
         'm':  0.2,     # pendulum mass
         'l':  0.5,     # pendulum length
         'g':  9.81,    # gravity
-        'Kp_x':     9.7,
-        'Kd_x':     7.0,
-        'Kp_theta': 1.1,
-        'Kd_theta': 2.2
+
+        'Kp_x':     0,
+        'Kd_x':     0,
+        'Kp_theta': 16.62,
+        'Kd_theta': 9.4
     }
 
     # [cart pos, cart vel, pendulum angle, pendulum angular vel]
@@ -211,7 +212,7 @@ def main():
     y0 = [0.0, 0.0, np.deg2rad(182), 0.0]
 
     # Solve for 5 seconds
-    t_vals, sol = simulate_system(params, y0, t_span=(0,5), steps=300)
+    t_vals, sol = simulate_system(params, y0, t_span=(0,10), steps=500)
 
     # Animate
     animate_pendulum(t_vals, sol, params)
