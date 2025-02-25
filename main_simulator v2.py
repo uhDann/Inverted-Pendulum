@@ -38,19 +38,19 @@ def pid_control(y, params, dt=0.01, x_ref=1.8288):
     Ki_theta = params['Ki_theta']  # I gain for pendulum angle
     Kd_theta = params['Kd_theta']  # D gain for pendulum angular velocity
 
-    # 外环控制（位置控制 -> 目标角度）
+    # Outer loop: Cart position control -> Target angle
     x_error = x_ref - x
     integral_x += x_error * dt
     derivative_x = (x_error - prev_x_error) / dt
     theta_ref = Kp_x * x_error + Ki_x * integral_x + Kd_x * derivative_x
-    prev_x_error = x_error  # 更新误差
+    prev_x_error = x_error 
 
-    # 内环控制（角度控制 -> 控制力）
+    # Inner loop: Pendulum angle control -> Force
     theta_error = theta_ref - x[2]
     integral_theta += theta_error * dt
     derivative_theta = (theta_error - prev_theta_error) / dt
     F = Kp_theta * theta_error + Ki_theta * integral_theta + Kd_theta * derivative_theta
-    prev_theta_error = theta_error  # 更新误差
+    prev_theta_error = theta_error
 
     return F
 
@@ -112,7 +112,7 @@ def animate_pendulum(t_vals, sol, params):
 
     # --- Setup figure and axes ---
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.set_xlim([-0.5, 2])   # Adjust as needed for your system
+    ax.set_xlim([-1.5, 1.5])   # Adjust as needed for your system
     ax.set_ylim([-1.0, 1.0])
     ax.set_aspect('equal')
     ax.set_title("Cart-Pendulum Animation")
@@ -170,15 +170,17 @@ def main():
         'm':  0.2,     # pendulum mass
         'l':  0.5,     # pendulum length
         'g':  9.81,    # gravity
-        'Kp_x':     9.7,
-        'Kd_x':     7.0,
-        'Kp_theta': 1.1,
-        'Kd_theta': 2.2
+        'Kp_x':     1.43,
+        'Kd_x':     0.62,
+        'Kp_theta': 13.1,
+        'Kd_theta': 0.55
     }
+
+    # Working values kp_x = 9.7, kd_x = 7.0, kp_theta = 1.1, kd_theta = 2.2
 
     # [cart pos, cart vel, pendulum angle, pendulum angular vel]
     # Initial conditions: x=0.1m, x_dot=0, theta=5°, theta_dot=0
-    y0 = [0.0, 0.0, np.deg2rad(182), 0.0]
+    y0 = [0.0, 0.0, np.deg2rad(195), 0.0]
 
     # Solve for 5 seconds
     t_vals, sol = simulate_system(params, y0)
