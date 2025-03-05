@@ -15,7 +15,7 @@ def pid_control_law(y, params, x_ref=0):
     
     # Outer loop: Cart position control -> Target angle
     x_error = x_ref - x
-    theta_ref = Kp_x * x_error - Kd_x * x_dot
+    theta_ref = np.pi + (Kp_x * x_error - Kd_x * x_dot)
     
     # Inner loop: Pendulum angle control -> Force
     theta_error = theta_ref - theta
@@ -31,25 +31,28 @@ def cart_pendulum_dynamics(t, y, params):
     x, x_dot, theta, theta_dot = y
     M        = params['M']         # cart mass
     m        = params['m']         # pendulum bob mass
-    l        = params['l']         # pendulum length
+    l        = params['l']/2       # half of the pendulum length
     g        = params['g']         # gravity
-
-    I = 1/3 * m * l**2             # Inertia
-    d = 1                          # Friction Coeeficient
+    u_c = params.get('mu_c', 0.01 )  # Cart friction coefficient (default 0.01)
+    u_p = params.get('mu_p', 0.001)  # Pendulum friction coefficient (default 0.001)
 
     s = np.sin(theta)
     c = np.cos(theta)
     F = pid_control_law(y, params)
-    denom = (M + m) * (I + m * l**2) - m**2 * l**2 * c**2
 
     # Equations of motion
     x_ddot = (
-        -(I + m * l**2) * d * x_dot + m * l * (I + m * l**2) * s * theta**2 + (I + m * l**2) * F - m**2 * l**2 * g * c * s
-    ) / denom
+        m * g * s * c 
+        - (7/3) * (F + m * l * theta_dot**2 * s - u_c * x_dot)
+        - (u_p * theta_dot * c) / l
+    ) / (m * c**2 - (7/3) * M)
+
 
     theta_ddot = (
-        m * l * c * d * x_dot + m**2 * l**2 * s * c * theta_dot**2 - m * l * c * F + (M + m) * m * g * l * s
-    ) / denom
+        (3 / (7 * l)) 
+        * (g * s - x_ddot * c - u_p * theta_dot 
+        / (m * l))
+    ) 
 
     return [x_dot, x_ddot, theta_dot, theta_ddot]
 
@@ -86,19 +89,19 @@ def update(val):
 
 # Define the initial parameters
 params = {
-    'Kp_x': 1.0,
-    'Kd_x': 1.0,
-    'Kp_theta': 1.0,
-    'Kd_theta': 1.0,
-    'M':  1.5,     # cart mass
+    'Kp_x': 0.0,
+    'Kd_x': 0.0,
+    'Kp_theta': 0.0,
+    'Kd_theta': 0.0,
+    'M':  1.0,     # cart mass
     'm':  0.2,     # pendulum mass
     'l':  0.5,     # pendulum length
-    'g':  -9.81,    # gravity
+    'g':  9.81,    # gravity
 }
 
 # Initial conditions and simulation parameters
 t_span = (0, 10)
-y0 = [0.0, 0.0, np.deg2rad(182), 0.0]  # Initial state: [x, x_dot, theta, theta_dot]
+y0 = [0.0, 0.0, np.deg2rad(90), 0.0]  # Initial state: [x, x_dot, theta, theta_dot]
 steps = 500
 
 # Initial simulation
@@ -112,11 +115,13 @@ plt.subplots_adjust(left=0.1, bottom=0.35)
 
 # Plot for x_vals
 ax[0].set_title("Cart Position (x)")
+# ax[0].set_ylim([0, 4])
 x_line, = ax[0].plot(t_vals, x_vals, lw=2)
 des_x_line = ax[0].axhline(y=0, color='r', linestyle='--')
 
 # Plot for theta_vals
 ax[1].set_title("Pendulum Angle (theta)")
+# ax[1].set_ylim([-5, 5])
 theta_line, = ax[1].plot(t_vals, theta_vals, lw=2)
 des_line = ax[1].axhline(y=np.pi, color='r', linestyle='--')
 
