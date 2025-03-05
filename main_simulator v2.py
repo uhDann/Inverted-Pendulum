@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 
-def pid_control_law(y, params, x_ref=2.2):
+def pid_control_law(y, params, x_ref=0):
     """Compute PID control force F."""
     x, x_dot, theta, theta_dot = y
 
@@ -112,7 +112,7 @@ def animate_pendulum(t_vals, sol, params):
 
     # --- Setup figure and axes ---
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.set_xlim([-1.5, 1.5])   # Adjust as needed for your system
+    ax.set_xlim([-5, 5])   # Adjust as needed for your system
     ax.set_ylim([-1.0, 1.0])
     ax.set_aspect('equal')
     ax.set_title("Cart-Pendulum Animation")
@@ -180,7 +180,7 @@ def main():
 
     # [cart pos, cart vel, pendulum angle, pendulum angular vel]
     # Initial conditions: x=0.1m, x_dot=0, theta=5°, theta_dot=0
-    y0 = [0.0, 0.0, np.deg2rad(195), 0.0]
+    y0 = [0.0, 0.0, np.deg2rad(165), 0.0]
 
     # Solve for 5 seconds
     t_vals, sol = simulate_system(params, y0)

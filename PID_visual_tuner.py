@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from scipy.integrate import solve_ivp
 
-def pid_control_law(y, params, x_ref=2.2):
+def pid_control_law(y, params, x_ref=0):
     """Compute PID control force F."""
     x, x_dot, theta, theta_dot = y
 
@@ -21,36 +21,6 @@ def pid_control_law(y, params, x_ref=2.2):
     theta_error = theta_ref - theta
     F = Kp_theta * theta_error - Kd_theta * theta_dot
     
-    return F
-
-def pid_control(y, params, dt=0.01, x_ref=1.8288):
-    """
-    Compute control force F
-    """
-    x, x_dot, theta, theta_dot = y
-
-    Kp_x     = params['Kp_x']      # P gain for cart position
-    Ki_x     = params['Ki_x']      # I gain for cart position
-    Kd_x     = params['Kd_x']      # D gain for cart velocity
-
-    Kp_theta = params['Kp_theta']  # P gain for pendulum angle
-    Ki_theta = params['Ki_theta']  # I gain for pendulum angle
-    Kd_theta = params['Kd_theta']  # D gain for pendulum angular velocity
-
-    # Outer loop: Cart position control -> Target angle
-    x_error = x_ref - x
-    integral_x += x_error * dt
-    derivative_x = (x_error - prev_x_error) / dt
-    theta_ref = Kp_x * x_error + Ki_x * integral_x + Kd_x * derivative_x
-    prev_x_error = x_error 
-
-    # Inner loop: Pendulum angle control -> Force
-    theta_error = theta_ref - x[2]
-    integral_theta += theta_error * dt
-    derivative_theta = (theta_error - prev_theta_error) / dt
-    F = Kp_theta * theta_error + Ki_theta * integral_theta + Kd_theta * derivative_theta
-    prev_theta_error = theta_error
-
     return F
 
 def cart_pendulum_dynamics(t, y, params):
@@ -123,7 +93,7 @@ params = {
     'M':  1.5,     # cart mass
     'm':  0.2,     # pendulum mass
     'l':  0.5,     # pendulum length
-    'g':  9.81,    # gravity
+    'g':  -9.81,    # gravity
 }
 
 # Initial conditions and simulation parameters
@@ -152,10 +122,10 @@ des_line = ax[1].axhline(y=np.pi, color='r', linestyle='--')
 
 # Define sliders for Kp and Kd values
 axcolor = 'lightgoldenrodyellow'
-ax_kp_x = plt.axes([0.1, 0.2, 0.65, 0.03], facecolor=axcolor)
-ax_kd_x = plt.axes([0.1, 0.15, 0.65, 0.03], facecolor=axcolor)
-ax_kp_theta = plt.axes([0.1, 0.1, 0.65, 0.03], facecolor=axcolor)
-ax_kd_theta = plt.axes([0.1, 0.05, 0.65, 0.03], facecolor=axcolor)
+ax_kp_x = plt.axes([0.1, 0.2, 0.8, 0.03], facecolor=axcolor)
+ax_kd_x = plt.axes([0.1, 0.15, 0.8, 0.03], facecolor=axcolor)
+ax_kp_theta = plt.axes([0.1, 0.1, 0.8, 0.03], facecolor=axcolor)
+ax_kd_theta = plt.axes([0.1, 0.05, 0.8, 0.03], facecolor=axcolor)
 
 kp_x_slider = Slider(ax_kp_x, 'Kp_x', 0, 20.0, valinit=params['Kp_x'])
 kd_x_slider = Slider(ax_kd_x, 'Kd_x', 0, 20.0, valinit=params['Kd_x'])
