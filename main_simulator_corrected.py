@@ -4,8 +4,21 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 
-def pid_control_law(y, params, x_ref=0):
+def low_pass_filter(signal, alpha=0.5):
+    """Apply a low-pass filter to the signal."""
+    filtered_signal = np.zeros_like(signal)
+    filtered_signal[0] = signal[0]
+    for i in range(1, len(signal)):
+        filtered_signal[i] = alpha * signal[i] + (1 - alpha) * filtered_signal[i - 1]
+    return filtered_signal
+
+def pid_control_law(y, params, x_ref=0, noise_lvl=[0, 0, 0, 0]):
     """Compute PID control force F."""
+
+    # Add noise if required
+    for i in range(len(noise_lvl)):
+        y[i] += np.random.normal(0, noise_lvl[i])
+    
     x, x_dot, theta, theta_dot = y
 
     Kp_x     = params['Kp_x']      # P gain for cart position
@@ -24,12 +37,15 @@ def pid_control_law(y, params, x_ref=0):
     
     return F
 
-def cart_pendulum_dynamics(t, y, params):
+def cart_pendulum_dynamics(t, y, params, noise_lvl=[]):
     """
     Returns [x_dot, x_ddot, theta_dot, theta_ddot].
     State y = [x, x_dot, theta, theta_dot].
     """
+
     x, x_dot, theta, theta_dot = y
+    
+    # Set up system parameters
     M        = params['M']         # cart mass
     m        = params['m']         # pendulum bob mass
     l        = params['l']/2       # half of the pendulum length
@@ -39,7 +55,7 @@ def cart_pendulum_dynamics(t, y, params):
 
     s = np.sin(theta)
     c = np.cos(theta)
-    F = pid_control_law(y, params)
+    F = pid_control_law(y, params, noise_lvl=noise_lvl)
 
     # Equations of motion
     x_ddot = (
@@ -56,14 +72,14 @@ def cart_pendulum_dynamics(t, y, params):
 
     return [x_dot, x_ddot, theta_dot, theta_ddot]
 
-def simulate_system(params, y0, t_span=(0, 10), steps=2000):
+def simulate_system(params, y0, t_span=(0, 10), steps=2000, noise_lvl=[]):
     """
     Solve the ODE for the given parameters, initial conditions,
     time span, and number of time steps.
     """
     t_eval = np.linspace(t_span[0], t_span[1], steps)
     sol = solve_ivp(
-        fun=lambda t, y: cart_pendulum_dynamics(t, y, params),
+        fun=lambda t, y: cart_pendulum_dynamics(t, y, params, noise_lvl=noise_lvl),
         t_span=t_span,
         y0=y0,
         t_eval=t_eval
@@ -83,7 +99,7 @@ def animate_pendulum(t_vals, sol, params):
 
     # --- Setup figure and axes ---
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.set_xlim([-5, 5])   # Adjust as needed for your system
+    ax.set_xlim([-3, 3])   # Adjust as needed for your system
     ax.set_ylim([-1.0, 1.0])
     ax.set_aspect('equal')
     ax.set_title("Cart-Pendulum Animation")
@@ -141,20 +157,22 @@ def main():
         'm':  0.2,     # pendulum mass
         'l':  0.5,     # pendulum length
         'g':  9.81,    # gravity
-        'Kp_x':     1,
-        'Kd_x':     4.01,
-        'Kp_theta': 1.09,
-        'Kd_theta': 4.56
+        'Kp_x':     1.54,
+        'Kd_x':     0.84,
+        'Kp_theta': 18.36,
+        'Kd_theta': 0.81
     }
-
-    # Working values kp_x = 9.7, kd_x = 7.0, kp_theta = 1.1, kd_theta = 2.2
 
     # [cart pos, cart vel, pendulum angle, pendulum angular vel]
     # Initial conditions: x=0.1m, x_dot=0, theta=5°, theta_dot=0
     y0 = [0.0, 0.0, np.deg2rad(90), 0.0]
 
+    # To add noise to the system, specify the noise level for each measurement [x, x_dot, theta, theta_dot]
+    # If no noise is needed, simply set all as 0
+    noise_lvl = [0.01, 0, 0.01, 0]
+
     # Solve for 5 seconds
-    t_vals, sol = simulate_system(params, y0)
+    t_vals, sol = simulate_system(params, y0, noise_lvl=noise_lvl)
 
     # Animate
     animate_pendulum(t_vals, sol, params)
