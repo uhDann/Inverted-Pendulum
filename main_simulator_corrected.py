@@ -4,14 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 
-def low_pass_filter(signal, alpha=0.5):
-    """Apply a low-pass filter to the signal."""
-    filtered_signal = np.zeros_like(signal)
-    filtered_signal[0] = signal[0]
-    for i in range(1, len(signal)):
-        filtered_signal[i] = alpha * signal[i] + (1 - alpha) * filtered_signal[i - 1]
-    return filtered_signal
-
 def pid_control_law(y, params, x_ref=0, noise_lvl=[0, 0, 0, 0]):
     """Compute PID control force F."""
 

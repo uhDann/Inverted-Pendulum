@@ -1,1 +1,0 @@
-y[i] += np.random.normal(0, noise_lvl[i])
