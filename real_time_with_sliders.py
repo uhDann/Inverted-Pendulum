@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import numpy as np
 import matplotlib
+from scipy.signal import place_poles
 
 # Necessary for matplotlib to work with Tkinter
 matplotlib.use('TkAgg')
@@ -38,14 +39,28 @@ def cart_pendulum_dynamics(y, F, params):
     s = np.sin(theta)
     c = np.cos(theta)
 
+    Cd_cart = params['Cd_cart']
+    Cd_pendulum = params['Cd_pendulum']
+
+    density_air = 1.225                             # Air density
+    d_pendulum = 0.03158                            # Diameter of the pendulum
+    A_car = 0.1                                     # Wind-facing area of the cart
+    A_pend = (l+0.077) * d_pendulum * abs(np.sin(theta))    # Wind-facing area of the pendulum
+
+    # Air drag applied on cart
+    F_cart = 0.5 * Cd_cart * density_air * A_car * x_dot**2
+    # Air drag applied on pendulum
+    tau_pend = 0.5 * Cd_pendulum * density_air * A_pend * x_dot**2
+    
     # Equations of motion
     x_ddot = (
         m*g*s*c
         - (7/3)*(F + m*l*(theta_dot**2)*s - mu_c*x_dot)
         - (mu_p * theta_dot * c)/l
+        - F_cart
     ) / (m*c**2 - (7/3)*M)
 
-    theta_ddot = (3/(7*l))*(g*s - x_ddot*c - (mu_p*theta_dot)/(m*l))
+    theta_ddot = (3/(7*l))*(g*s - x_ddot*c - (mu_p*theta_dot)/(m*l) - tau_pend)
     
     return np.array([x_dot, x_ddot, theta_dot, theta_ddot])
 
@@ -79,6 +94,46 @@ def pid_control_law(y_filt, params, x_ref=0.0):
     F = Kp_theta * theta_error - Kd_theta * theta_dot
     return F
 
+# Controller 2 - Pole Placement controller
+def pole_placement_control(y, params, target=[0.0, 0.0, 0.0, 0.0]):
+    x, x_dot, theta, theta_dot = y
+    M         = params['M']         # cart mass
+    m         = params['m']         # pendulum bob mass
+    l         = params['l']/2       # pendulum length
+    g         = params['g']         # gravity
+
+    I = 1/3 * m * l**2                    # Inertia
+    mu_c = params.get('mu_c', 0.01)       # Friction Coeeficient(cart against track)
+    mu_p = params.get('mu_p', 0.001)      # Friction Coeeficient(pivoting point damping)
+    
+    s = np.sin(theta)
+    c = np.cos(theta)
+    denom = (M + m) * (I + m * l**2) - m**2 * l**2 * c**2
+
+    A = np.array([
+        [0, 1, 0, 0],
+        [0, -(I + m * l**2) * mu_c / denom, (-m**2 * l**2 * g * (M + m) * (I + m * l**2)) / denom**2, l * m * mu_p / denom],
+        [0, 0, 0, 1],
+        [0, m * l * mu_c / denom, (M + m) * m * g * l / denom, -mu_p * (M + m)]
+    ])
+
+    B = np.array([
+        [0],
+        [(I + m * l**2) / denom],
+        [0],
+        [-m * l / denom]
+    ])
+
+    # Check the controllability
+    controllability = np.hstack([B, A @ B, A @ A @ B, A @ A @ A @ B])
+
+    # Pole placement
+    desired_poles = np.array([-2 + 0.5j, -2 - 0.5j, -4, -5])
+    placed = place_poles(A, B, desired_poles)
+    K = placed.gain_matrix
+    F = -np.dot(K, y - target)
+
+    return F[0]
 
 def low_pass_filter(old_val, new_meas, alpha=0.5):
     """
@@ -241,7 +296,7 @@ class CartPendulumSim:
         if self.controller_type == "PID":
             F = pid_control_law(self.y_filt, self.params, x_ref=0.0)
         else:
-            F = 0.0
+            F = pole_placement_control(self.y_filt, self.params)
 
         # Append the history of control signals without the application of manual force
         self.F_history.append(F)
@@ -297,8 +352,10 @@ class LiveCartPendulumApp:
             'theta0': 90.0,
 
             # (Optional) Friction coefficients
-            'mu_c': 0.01,   # Cart friction coefficient
-            'mu_p': 0.001   # Pendulum pivot friction coefficient
+            'mu_c': 0.01,           # Cart friction coefficient
+            'mu_p': 0.001,          # Pendulum pivot friction coefficient
+            'Cd_cart': 0.8,         # drag coefficient of the cart
+            'Cd_pendulum': 1.2      # drag coefficient of the pendulum
         }
         self.noise_std = [0.01, 0.0, 0.01, 0.0]
         self.alpha = 0.5
