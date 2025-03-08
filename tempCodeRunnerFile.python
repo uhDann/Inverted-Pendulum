@@ -1,0 +1,82 @@
+import sympy as sp
+
+# 1) Define symbols
+x, xdot, th, thdot, F = sp.symbols('x xdot th thdot F', real=True)
+m, M, l, g = sp.symbols('m M l g', positive=True)
+mu_c, mu_p = sp.symbols('mu_c mu_p', positive=True)
+
+# s=sin(theta), c=cos(theta)
+s = sp.sin(th)
+c = sp.cos(th)
+
+# 2) Write down the denominators/numerators from your equations
+#    ---------------------------------------------------------
+#    We represent:
+#    x_ddot = [ numerator ] / [ denominator ]
+#    Here, we symbolically define them exactly as in your code.
+#    (Adjust if you also want F_cart, tau_pend, etc.)
+
+den = m*c**2 - (sp.Rational(7,3))*M
+
+# The "numerator" in your expression for x_ddot:
+num = (m*g*s*c
+       - (sp.Rational(7,3))*(F + m*l*(thdot**2)*s - mu_c*xdot)
+       - (mu_p*thdot*c)/l)
+
+x_ddot_expr = num / den
+
+# The expression for theta_ddot:
+# theta_ddot = (3/(7*l))*( g*s - x_ddot*c - (mu_p*thdot)/(m*l) - tau_pend )
+# For simplicity, let's define tau_pend=0 or keep it symbolic, e.g. tau_pend = sp.Symbol('tau_pend', real=True)
+tau_pend = sp.Symbol('tau_pend', real=True)
+
+th_ddot_expr = (sp.Rational(3,7)/l)*(
+    g*s
+    - x_ddot_expr*c
+    - (mu_p*thdot)/(m*l)
+    - tau_pend
+)
+
+# 3) Define the state vector derivative f = [x_dot, x_ddot, theta_dot, theta_ddot]
+f1 = xdot
+f2 = x_ddot_expr
+f3 = thdot
+f4 = th_ddot_expr
+
+f = sp.Matrix([f1, f2, f3, f4])  # This is [dot{x}, dot{x_dot}, dot{theta}, dot{theta_dot}]
+
+# 4) Define the state vector X and input u
+X = sp.Matrix([x, xdot, th, thdot])
+u = sp.Matrix([F])
+
+# 5) Compute Jacobians: A = df/dX,   B = df/dF
+A_sym = f.jacobian(X)
+B_sym = f.jacobian(u)
+
+# 6) Evaluate at the equilibrium: x=0, xdot=0, th=pi, thdot=0, and (optionally) F=0
+#    Also set tau_pend=0 at equilibrium if needed, etc.
+equil_subs = {
+    x: 0,
+    xdot: 0,
+    th: sp.pi,
+    thdot: 0,
+    F: 0,          # If you want the partial deriv at input = 0
+    tau_pend: 0    # Typically 0 at equilibrium
+}
+
+A_lin = A_sym.subs(equil_subs)
+B_lin = B_sym.subs(equil_subs)
+
+print("A =", A_lin)
+print("B =", B_lin)
+
+A_num = sp.zeros(4)
+B_num = sp.zeros(4,1)
+
+# e.g. give specific numeric values:
+param_values = {m:0.2, M:1.0, l:0.5, g:9.81, mu_c:0.01, mu_p:0.001}
+A_num = A_lin.evalf(subs=param_values)
+B_num = B_lin.evalf(subs=param_values)
+
+print("A numeric =", A_num)
+print("B numeric =", B_num)

@@ -55,9 +55,8 @@ def cart_pendulum_dynamics(y, F, params):
     # Equations of motion
     x_ddot = (
         m*g*s*c
-        - (7/3)*(F + m*l*(theta_dot**2)*s - mu_c*x_dot)
+        - (7/3)*(F + F_cart + m*l*(theta_dot**2)*s - mu_c*x_dot)
         - (mu_p * theta_dot * c)/l
-        - F_cart
     ) / (m*c**2 - (7/3)*M)
 
     theta_ddot = (3/(7*l))*(g*s - x_ddot*c - (mu_p*theta_dot)/(m*l) - tau_pend)
@@ -95,7 +94,7 @@ def pid_control_law(y_filt, params, x_ref=0.0):
     return F
 
 # Controller 2 - Pole Placement controller
-def pole_placement_control(y, params, target=[0.0, 0.0, 0.0, 0.0]):
+def pole_placement_control(y, params, target=[0.0, 0.0, np.pi, 0.0]):
     x, x_dot, theta, theta_dot = y
     M         = params['M']         # cart mass
     m         = params['m']         # pendulum bob mass
@@ -110,25 +109,18 @@ def pole_placement_control(y, params, target=[0.0, 0.0, 0.0, 0.0]):
     c = np.cos(theta)
     denom = (M + m) * (I + m * l**2) - m**2 * l**2 * c**2
 
-    A = np.array([
-        [0, 1, 0, 0],
-        [0, -(I + m * l**2) * mu_c / denom, (-m**2 * l**2 * g * (M + m) * (I + m * l**2)) / denom**2, l * m * mu_p / denom],
-        [0, 0, 0, 1],
-        [0, m * l * mu_c / denom, (M + m) * m * g * l / denom, -mu_p * (M + m)]
-    ])
+    A = np.array([[0, 1, 0, 0], 
+                  [0, 7*mu_c/(3*(-7*M/3 + m)), g*m/(-7*M/3 + m), mu_p/(l*(-7*M/3 + m))], 
+                  [0, 0, 0, 1], 
+                  [0, mu_c/(l*(-7*M/3 + m)), 3*(g*m/(-7*M/3 + m) - g)/(7*l), 3*(mu_p/(l*(-7*M/3 + m)) - mu_p/(l*m))/(7*l)]])
 
-    B = np.array([
-        [0],
-        [(I + m * l**2) / denom],
-        [0],
-        [-m * l / denom]
-    ])
-
-    # Check the controllability
-    controllability = np.hstack([B, A @ B, A @ A @ B, A @ A @ A @ B])
+    B = np.array([[0], 
+                  [-7/(3*(-7*M/3 + m))], 
+                  [0], 
+                  [-1/(l*(-7*M/3 + m))]])
 
     # Pole placement
-    desired_poles = np.array([-2 + 0.5j, -2 - 0.5j, -4, -5])
+    desired_poles = np.array([-2, -2.5, -3+1j, -3-1j])
     placed = place_poles(A, B, desired_poles)
     K = placed.gain_matrix
     F = -np.dot(K, y - target)
@@ -295,8 +287,10 @@ class CartPendulumSim:
         # Finding the appropriate control force with the selected controller
         if self.controller_type == "PID":
             F = pid_control_law(self.y_filt, self.params, x_ref=0.0)
-        else:
+        elif self.controller_type == "Pole Placement":
             F = pole_placement_control(self.y_filt, self.params)
+        else:
+            raise ValueError("Invalid controller type selected.")
 
         # Append the history of control signals without the application of manual force
         self.F_history.append(F)
