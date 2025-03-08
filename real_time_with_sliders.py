@@ -34,17 +34,18 @@ def cart_pendulum_dynamics(y, F, params):
     # Friction coefficients, setting realistic values as defaults if none are provided
     mu_c = params.get('mu_c', 0.01)
     mu_p = params.get('mu_p', 0.001)
+
+    # Drag coefficients, setting realistic values as defaults if none are provided
+    Cd_cart = params.get('Cd_cart', 0.8)
+    Cd_pendulum = params.get('Cd_pendulum', 1.2)
     
     x, x_dot, theta, theta_dot = y
     s = np.sin(theta)
     c = np.cos(theta)
 
-    Cd_cart = params['Cd_cart']
-    Cd_pendulum = params['Cd_pendulum']
-
-    density_air = 1.225                             # Air density
-    d_pendulum = 0.03158                            # Diameter of the pendulum
-    A_car = 0.1                                     # Wind-facing area of the cart
+    density_air = 1.225                                     # Air density
+    d_pendulum = 0.03158                                    # Diameter of the pendulum
+    A_car = 0.1                                             # Wind-facing area of the cart
     A_pend = (l+0.077) * d_pendulum * abs(np.sin(theta))    # Wind-facing area of the pendulum
 
     # Air drag applied on cart
@@ -350,6 +351,7 @@ class LiveCartPendulumApp:
             'mu_p': 0.001,          # Pendulum pivot friction coefficient
             'Cd_cart': 0.8,         # drag coefficient of the cart
             'Cd_pendulum': 1.2      # drag coefficient of the pendulum
+
         }
         self.noise_std = [0.01, 0.0, 0.01, 0.0]
         self.alpha = 0.5
@@ -484,7 +486,27 @@ class LiveCartPendulumApp:
         scale_mu_p.grid(row=9, column=1, padx=5, sticky="we")
         self.lbl_mu_p_val.grid(row=9, column=2, padx=5)
 
-        for i in range(10):
+        # Cd_cart
+        self.Cd_cart_var = tk.DoubleVar(value=self.params['Cd_cart'])
+        self.lbl_Cd_cart_val = tk.Label(frm, text=f"{self.Cd_cart_var.get():.3f}")
+        tk.Label(frm, text="Cart Drag coefficient").grid(row=10, column=0, sticky="w")
+        scale_Cd_cart = ttk.Scale(frm, from_=0, to=5, orient='horizontal',
+                                 variable=self.Cd_cart_var, length=200,
+                                 command=lambda v: self._update_label(self.lbl_Cd_cart_val, v, 3))
+        scale_Cd_cart.grid(row=10, column=1, padx=5, sticky="we")
+        self.lbl_Cd_cart_val.grid(row=10, column=2, padx=5)
+
+        # Cd_pendulum
+        self.Cd_pendulum_var = tk.DoubleVar(value=self.params['Cd_pendulum'])
+        self.lbl_Cd_pendulum_val = tk.Label(frm, text=f"{self.Cd_pendulum_var.get():.3f}")
+        tk.Label(frm, text="Pendulum Drag coefficient").grid(row=11, column=0, sticky="w")
+        scale_Cd_pendulum = ttk.Scale(frm, from_=0, to=5, orient='horizontal',
+                                 variable=self.Cd_pendulum_var, length=200,
+                                 command=lambda v: self._update_label(self.lbl_Cd_pendulum_val, v, 3))
+        scale_Cd_pendulum.grid(row=11, column=1, padx=5, sticky="we")
+        self.lbl_Cd_pendulum_val.grid(row=11, column=2, padx=5)
+
+        for i in range(12):
             frm.rowconfigure(i, weight=0)
         frm.columnconfigure(1, weight=1)
     
@@ -543,6 +565,8 @@ class LiveCartPendulumApp:
         self.params['theta0']   = self.theta0_var.get()
         self.params['mu_c']   = self.mu_c_var.get()
         self.params['mu_p']   = self.mu_p_var.get()
+        self.params['Cd_cart'] = self.Cd_cart_var.get()
+        self.params['Cd_pendulum'] = self.Cd_pendulum_var.get()
 
         # Noise
         self.noise_std = [self.noise_x_var.get(), 0.0,
@@ -570,6 +594,8 @@ class LiveCartPendulumApp:
             self.params['Kd_theta'] = self.kd_theta_var.get()
             self.params['mu_c']   = self.mu_c_var.get()
             self.params['mu_p']   = self.mu_p_var.get()
+            self.params['Cd_cart'] = self.Cd_cart_var.get()
+            self.params['Cd_pendulum'] = self.Cd_pendulum_var.get()
 
             self.sim.controller_type = self.controller_var.get()
 
