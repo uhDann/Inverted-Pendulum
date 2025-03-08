@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib.patches import FancyArrow
 
 # Defining the Equations of Motion and Dynamics for simulation
 
@@ -110,7 +111,7 @@ class CartPendulumSim:
         alpha = LP filter coefficient
         t_final = final duration for the simulation
     """
-    def __init__(self, params, dt=0.01, noise_std=[0,0,0,0], alpha=0.5, t_final=5.0):
+    def __init__(self, params, dt=0.01, noise_std=[0,0,0,0], alpha=0.5, t_final=20.0):
         
         # Store input settings
         self.params = params
@@ -149,7 +150,7 @@ class CartPendulumSim:
         self.ax_anim.set_title("Cart-Pendulum Animation")
 
         self.cart_width = 0.3
-        (self.cart_line,) = self.ax_anim.plot([], [], lw=5, color='k')
+        (self.cart_line,) = self.ax_anim.plot([], [], lw=4, color='k')
         (self.rod_line,)  = self.ax_anim.plot([], [], lw=2, color='blue')
         bob_radius = 0.05
         self.bob_circle = plt.Circle((0,0), bob_radius, fc='red')
@@ -192,7 +193,7 @@ class CartPendulumSim:
         plt.tight_layout()
         plt.show(block=False)  # non-blocking show
 
-    def update_animation(self, x, theta):
+    def update_animation(self, x, theta, F):
         # Update cart
         self.cart_line.set_data([x - self.cart_width/2, x + self.cart_width/2], [0, 0])
         # Update rod
@@ -201,6 +202,18 @@ class CartPendulumSim:
         rod_y = [0, -l * np.cos(theta)]
         self.rod_line.set_data(rod_x, rod_y)
         self.bob_circle.set_center((rod_x[1], rod_y[1]))
+
+        # Remove previous force arrow
+        if hasattr(self, "force_arrow"):
+            self.force_arrow.remove()  
+
+        # Compute new force arrow position (Scaling factor 0.1 for visualization)
+        arrow_length = 0.1 * F  # Adjust length proportional to force magnitude
+        arrow_x = x
+        self.force_arrow = FancyArrow(arrow_x, 0.9, arrow_length, 0, width=0.04, color='red')
+
+        # Re-add the arrow to the figure
+        self.ax_anim.add_patch(self.force_arrow)
 
     def do_simulation_step(self):
         """
@@ -226,8 +239,10 @@ class CartPendulumSim:
         F = pid_control_law(self.y_filt, self.params, x_ref=0.0)
         self.F_history.append(F)
 
+        F = F + self.params.get('manual_force', 0.0)
+
         # Updating the animation
-        self.update_animation(self.y_true[0], self.y_true[2])
+        self.update_animation(self.y_true[0], self.y_true[2], F)
 
         # Updating the graphs time-series lines
         self.line_x_true.set_data(self.time_history, self.x_true_history)
@@ -281,7 +296,7 @@ class LiveCartPendulumApp:
         self.noise_std = [0.01, 0.0, 0.01, 0.0]
         self.alpha = 0.5
         self.dt = 0.01
-        self.t_final = 5.0
+        self.t_final = 20.0
 
         # Create a simulation object once the user clicks "Start"
         self.sim = None
@@ -289,6 +304,9 @@ class LiveCartPendulumApp:
 
         # Build the sliders (ttk.Scale) + numeric-value labels
         self._build_sliders()
+        
+        # Input force controls for disturbance
+        self._build_input_force_controls()
 
         # Start & Stop buttons
         btn_frame = tk.Frame(self.root)
@@ -385,9 +403,55 @@ class LiveCartPendulumApp:
         scale_theta0.grid(row=7, column=1, padx=5, sticky="we")
         self.lbl_theta0_val.grid(row=7, column=2, padx=5)
 
-        for i in range(8):
+        # mu_c
+        self.mu_c_var = tk.DoubleVar(value=self.params['mu_c'])
+        self.lbl_mu_c_val = tk.Label(frm, text=f"{self.mu_c_var.get():.3f}")
+        tk.Label(frm, text="Cart Friction coefficient").grid(row=8, column=0, sticky="w")
+        scale_mu_c = ttk.Scale(frm, from_=0, to=1, orient='horizontal',
+                                 variable=self.mu_c_var, length=200,
+                                 command=lambda v: self._update_label(self.lbl_mu_c_val, v, 3))
+        scale_mu_c.grid(row=8, column=1, padx=5, sticky="we")
+        self.lbl_mu_c_val.grid(row=8, column=2, padx=5)
+
+        # mu_p
+        self.mu_p_var = tk.DoubleVar(value=self.params['mu_p'])
+        self.lbl_mu_p_val = tk.Label(frm, text=f"{self.mu_p_var.get():.3f}")
+        tk.Label(frm, text="Pivot point Friction coefficient").grid(row=9, column=0, sticky="w")
+        scale_mu_p = ttk.Scale(frm, from_=0, to=1, orient='horizontal',
+                                 variable=self.mu_p_var, length=200,
+                                 command=lambda v: self._update_label(self.lbl_mu_p_val, v, 3))
+        scale_mu_p.grid(row=9, column=1, padx=5, sticky="we")
+        self.lbl_mu_p_val.grid(row=9, column=2, padx=5)
+
+        for i in range(10):
             frm.rowconfigure(i, weight=0)
         frm.columnconfigure(1, weight=1)
+    
+    def _build_input_force_controls(self):
+        """
+        Creates an input box for applying a manual force and a button to apply it.
+        """
+        frm = tk.Frame(self.root)
+        frm.pack(pady=10)
+        self.manual_force = 0.0
+
+        tk.Label(frm, text="Manual Force (N):").pack(side=tk.LEFT, padx=5)
+
+        self.force_input = tk.Entry(frm, width=10)
+        self.force_input.pack(side=tk.LEFT, padx=5)
+
+        self.force_button = tk.Button(frm, text="Apply Force", bg="lightblue",
+                                    command=self.apply_manual_force)
+        self.force_button.pack(side=tk.LEFT, padx=5)
+
+    def apply_manual_force(self):
+        """
+        Reads the manual force from the input box and applies it for one step.
+        """
+        try:
+            self.manual_force = float(self.force_input.get())  # Read user input
+        except ValueError:
+            self.manual_force = 0.0  # Default to zero if invalid input
 
     def _update_label(self, label_widget, new_val, precision=2):
         # Called whenever a slider moves. Update the label text
@@ -403,6 +467,8 @@ class LiveCartPendulumApp:
         self.params['Kp_theta'] = self.kp_theta_var.get()
         self.params['Kd_theta'] = self.kd_theta_var.get()
         self.params['theta0']   = self.theta0_var.get()
+        self.params['mu_c']   = self.mu_c_var.get()
+        self.params['mu_p']   = self.mu_p_var.get()
 
         # Noise
         self.noise_std = [self.noise_x_var.get(), 0.0,
@@ -428,6 +494,11 @@ class LiveCartPendulumApp:
             self.params['Kd_x']     = self.kd_x_var.get()
             self.params['Kp_theta'] = self.kp_theta_var.get()
             self.params['Kd_theta'] = self.kd_theta_var.get()
+            self.params['mu_c']   = self.mu_c_var.get()
+            self.params['mu_p']   = self.mu_p_var.get()
+            self.params['manual_force'] = self.manual_force
+            self.manual_force = 0.0  # Reset after applying
+
 
             self.sim.alpha = self.alpha_var.get()
             self.sim.noise_std = [self.noise_x_var.get(), 0.0,
