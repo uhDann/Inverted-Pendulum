@@ -119,6 +119,8 @@ class CartPendulumSim:
         self.noise_std = noise_std
         self.alpha = alpha
         self.t_final = t_final
+        self.manual_force = 0.0
+        self.controller_type = "PID"
 
         # Initial conditions
         theta0 = np.deg2rad(params.get('theta0', 90.0))
@@ -235,11 +237,16 @@ class CartPendulumSim:
         self.x_filt_history.append(self.y_filt[0])
         self.theta_filt_history.append(self.y_filt[2])
 
-        # Finding the appropriate control force
-        F = pid_control_law(self.y_filt, self.params, x_ref=0.0)
+        # Finding the appropriate control force with the selected controller
+        if self.controller_type == "PID":
+            F = pid_control_law(self.y_filt, self.params, x_ref=0.0)
+        else:
+            F = 0.0
+
+        # Append the history of control signals without the application of manual force
         self.F_history.append(F)
 
-        F = F + self.params.get('manual_force', 0.0)
+        F = F + self.manual_force
 
         # Updating the animation
         self.update_animation(self.y_true[0], self.y_true[2], F)
@@ -307,6 +314,9 @@ class LiveCartPendulumApp:
         
         # Input force controls for disturbance
         self._build_input_force_controls()
+
+        # Conrtoller type selection
+        self._build_controller_selector()
 
         # Start & Stop buttons
         btn_frame = tk.Frame(self.root)
@@ -433,7 +443,6 @@ class LiveCartPendulumApp:
         """
         frm = tk.Frame(self.root)
         frm.pack(pady=10)
-        self.manual_force = 0.0
 
         tk.Label(frm, text="Manual Force (N):").pack(side=tk.LEFT, padx=5)
 
@@ -449,9 +458,23 @@ class LiveCartPendulumApp:
         Reads the manual force from the input box and applies it for one step.
         """
         try:
-            self.manual_force = float(self.force_input.get())  # Read user input
+            self.sim.manual_force = float(self.force_input.get())  # Read user input
         except ValueError:
-            self.manual_force = 0.0  # Default to zero if invalid input
+            self.sim.manual_force = 0.0  # Default to zero if invalid input
+        
+    def _build_controller_selector(self):
+        """
+        Creates a dropdown menu to select the controller type.
+        """
+        frm = tk.Frame(self.root)
+        frm.pack(pady=10)
+
+        tk.Label(frm, text="Select Controller:").pack(side=tk.LEFT, padx=5)
+
+        self.controller_var = tk.StringVar(value="PID")
+        self.controller_selector = ttk.Combobox(frm, textvariable=self.controller_var, 
+                                                values=["PID", "Pole Placement", "LQR"], state="readonly")
+        self.controller_selector.pack(side=tk.LEFT, padx=5)
 
     def _update_label(self, label_widget, new_val, precision=2):
         # Called whenever a slider moves. Update the label text
@@ -496,9 +519,8 @@ class LiveCartPendulumApp:
             self.params['Kd_theta'] = self.kd_theta_var.get()
             self.params['mu_c']   = self.mu_c_var.get()
             self.params['mu_p']   = self.mu_p_var.get()
-            self.params['manual_force'] = self.manual_force
-            self.manual_force = 0.0  # Reset after applying
 
+            self.sim.controller_type = self.controller_var.get()
 
             self.sim.alpha = self.alpha_var.get()
             self.sim.noise_std = [self.noise_x_var.get(), 0.0,
@@ -510,6 +532,8 @@ class LiveCartPendulumApp:
 
             # Schedule the next step
             self.root.after(1, self.update_sim)  # ~1 ms delay
+
+            self.sim.manual_force = 0.0  # Reset after applying
         else:
             print("Simulation completed or stopped.")
 
