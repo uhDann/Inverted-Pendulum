@@ -52,6 +52,6 @@ Upon running the script, a **Tkinter-based GUI** will open, allowing you to:
 - [real_time_with_sliders.py](https://github.com/uhDann/Inverted-Pendulum/blob/main/real_time_with_sliders.py) - Main simulator
 - [symbolic_lin.py](https://github.com/uhDann/Inverted-Pendulum/blob/main/symbolic_lin.py) - Symbolic linearization for the pole-placement
 - [PID_visual_tuner.py](https://github.com/uhDann/Inverted-Pendulum/blob/main/PID_visual_tuner.py) - PID visual tuner, for faster tuning and visualization
-- 
+
 ## License
 This project is licensed under the **MIT License**.
