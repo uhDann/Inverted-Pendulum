@@ -26,7 +26,7 @@ def cart_pendulum_dynamics(y, F, params):
 
     # Recalling the parameters
 
-    M  = params['M']
+    M  = params['M'] + params['m']
     m  = params['m']
     l  = params['l'] / 2
     g  = params['g']
@@ -97,10 +97,10 @@ def pid_control_law(y_filt, params, x_ref=0.0):
 # Controller 2 - Pole Placement controller
 def pole_placement_control(y, params, target=[0.0, 0.0, np.pi, 0.0]):
     x, x_dot, theta, theta_dot = y
-    M         = params['M']         # cart mass
-    m         = params['m']         # pendulum bob mass
-    l         = params['l']/2       # pendulum length
-    g         = params['g']         # gravity
+    M         = params['M'] + params['m']         # combined mass
+    m         = params['m']                       # pendulum bob mass
+    l         = params['l']/2                     # pendulum length
+    g         = params['g']                       # gravity
 
     I = 1/3 * m * l**2                    # Inertia
     mu_c = params.get('mu_c', 0.01)       # Friction Coeeficient(cart against track)
