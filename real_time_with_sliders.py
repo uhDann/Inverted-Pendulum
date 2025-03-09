@@ -95,21 +95,17 @@ def pid_control_law(y_filt, params, x_ref=0.0):
     return F
 
 # Controller 2 - Pole Placement controller
-def pole_placement_control(y, params, target=[0.0, 0.0, np.pi, 0.0]):
-    x, x_dot, theta, theta_dot = y
+def pole_placement_control(y_filt, params, target=[0.0, 0.0, np.pi, 0.0]):
+    # Recalling the parameters
     M         = params['M'] + params['m']         # combined mass
-    m         = params['m']                       # pendulum bob mass
-    l         = params['l']/2                     # pendulum length
+    m         = params['m']                       # pendulum mass
+    l         = params['l'] / 2                   # pendulum length
     g         = params['g']                       # gravity
 
-    I = 1/3 * m * l**2                    # Inertia
     mu_c = params.get('mu_c', 0.01)       # Friction Coeeficient(cart against track)
     mu_p = params.get('mu_p', 0.001)      # Friction Coeeficient(pivoting point damping)
-    
-    s = np.sin(theta)
-    c = np.cos(theta)
-    denom = (M + m) * (I + m * l**2) - m**2 * l**2 * c**2
-
+       
+    # Linearize system: X' = AX + Bu
     A = np.array([[0, 1, 0, 0], 
                   [0, 7*mu_c/(3*(-7*M/3 + m)), g*m/(-7*M/3 + m), mu_p/(l*(-7*M/3 + m))], 
                   [0, 0, 0, 1], 
@@ -124,7 +120,7 @@ def pole_placement_control(y, params, target=[0.0, 0.0, np.pi, 0.0]):
     desired_poles = np.array([-2, -2.5, -3+1j, -3-1j])
     placed = place_poles(A, B, desired_poles)
     K = placed.gain_matrix
-    F = -np.dot(K, y - target)
+    F = -np.dot(K, y_filt - target)
 
     return F[0]
 
