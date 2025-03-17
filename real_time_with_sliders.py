@@ -3,6 +3,7 @@ from tkinter import ttk
 import numpy as np
 import matplotlib
 from scipy.signal import place_poles
+from scipy.linalg import solve_continuous_are
 
 # Necessary for matplotlib to work with Tkinter
 matplotlib.use('TkAgg')
@@ -123,6 +124,62 @@ def pole_placement_control(y_filt, params, target=[0.0, 0.0, np.pi, 0.0]):
     F = -np.dot(K, y_filt - target)
 
     return F[0]
+
+def lqr_control(y, params, Q=None, R=None, target=[0.0, 0.0, np.pi, 0.0]):
+    """
+    Compute the control force F using an LQR controller around the upright equilibrium.
+
+    Inputs:
+        y      = [x, x_dot, theta, theta_dot] (current state)
+        params = dictionary containing system parameters (M, m, l, g, friction, etc.)
+        Q      = State-weighting matrix (4x4). If None, uses a default
+        R      = Control-weighting matrix (1x1). If None, uses a default
+        target = desired equilibrium state, default is [0, 0, pi, 0] (upright)
+
+    Returns:
+        F (float) = control force for the cart
+    """
+    
+    M   = params['M']                 # cart mass
+    m   = params['m']                 # pendulum bob mass
+    l   = params['l'] / 2.0           # half-length of the pendulum
+    g   = params['g']                 # gravity
+    mu_c = params.get('mu_c', 0.01)    # cart friction coefficient
+    mu_p = params.get('mu_p', 0.001)   # pivot friction coefficient
+
+    # Linearized A and B matrices around the upright equilibrium
+    A = np.array([
+        [0,  1,  0,  0], 
+        [0,  7*mu_c/(3*(-7*M/3 + m)),      g*m/(-7*M/3 + m),    mu_p/(l*(-7*M/3 + m))],
+        [0,  0,  0,  1],
+        [0,  mu_c/(l*(-7*M/3 + m)),       3*(g*m/(-7*M/3 + m) - g)/(7*l),
+              3*(mu_p/(l*(-7*M/3 + m)) - mu_p/(l*m)) / (7*l)]
+    ])
+
+    B = np.array([
+        [0],
+        [-7/(3*(-7*M/3 + m))],
+        [0],
+        [-1/(l*(-7*M/3 + m))]
+    ])
+
+    if Q is None:
+        # Penalize [x, x_dot, theta, theta_dot] with heavier penalty on theta
+        Q = np.diag([3.0, 1.0, 4.0, 3.0])
+    if R is None:
+        # Penalize large control forces
+        R = np.array([[1.0]])  
+
+    # Solving Continuous-time Algebraic Riccati Equation for LQR
+    P = solve_continuous_are(A, B, Q, R)
+    K = np.linalg.inv(R) @ B.T @ P
+
+    # Computing Control Action
+    x_diff = (y - target).reshape(-1, 1)  # column vector
+    F = -K @ x_diff
+
+    return F.item()  # Return as a scalar
+
 
 def low_pass_filter(old_val, new_meas, alpha=0.5):
     """
@@ -286,6 +343,8 @@ class CartPendulumSim:
             F = pid_control_law(self.y_filt, self.params, x_ref=0.0)
         elif self.controller_type == "Pole Placement":
             F = pole_placement_control(self.y_filt, self.params)
+        elif self.controller_type == "LQR":
+            F = lqr_control(self.y_filt, self.params)
         else:
             raise ValueError("Invalid controller type selected.")
 
