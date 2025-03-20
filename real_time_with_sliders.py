@@ -361,14 +361,17 @@ class CartPendulumSim:
         self.line_x_meas.set_data(self.time_history, self.x_meas_history)
         self.line_x_filt.set_data(self.time_history, self.x_filt_history)
         self.ax_x.set_xlim([0, self.t_final])
+        self.ax_x.set_ylim([-0.8, 0.8])
 
         self.line_theta_true.set_data(self.time_history, self.theta_true_history)
         self.line_theta_meas.set_data(self.time_history, self.theta_meas_history)
         self.line_theta_filt.set_data(self.time_history, self.theta_filt_history)
         self.ax_theta.set_xlim([0, self.t_final])
+        self.ax_theta.set_ylim([0, 3/2*np.pi])
 
         self.line_F.set_data(self.time_history, self.F_history)
         self.ax_F.set_xlim([0, self.t_final])
+        self.ax_F.set_ylim([-20, 20])
 
         plt.draw()
 
