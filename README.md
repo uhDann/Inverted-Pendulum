@@ -34,9 +34,8 @@ pip install numpy scipy matplotlib tk
 Clone the repository and execute the main script:
 
 ```bash
-git clone https://github.com/your-repo/cart-pendulum-simulation.git
-cd cart-pendulum-simulation
-python main.py
+git clone https://github.com/uhDann/Inverted-Pendulum.git
+python real_time_with_sliders.py
 ```
 
 ## Usage
